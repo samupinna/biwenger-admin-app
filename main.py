@@ -3,8 +3,7 @@
 """
 BIWENGER LIGA MANAGER
 Aplicación para gestionar ligas de Biwenger
-Autor: Tu nombre
-Versión: 1.0
+Versión: 1.0 - Completa
 """
 
 import kivy
@@ -19,7 +18,6 @@ from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.storage.jsonstore import JsonStore
 from kivy.clock import Clock
 from datetime import datetime, timedelta
 import webbrowser
@@ -31,11 +29,14 @@ try:
     from kivy.utils import platform
     if platform == 'android':
         from android.storage import primary_external_storage_path
-        DATA_DIR = primary_external_storage_path() + '/BiwengerLiga'
+        DATA_DIR = os.path.join(primary_external_storage_path(), 'BiwengerLiga')
     else:
-        DATA_DIR = os.path.expanduser('~')
+        DATA_DIR = os.path.expanduser('~/.biwenger_liga')
 except:
-    DATA_DIR = os.path.expanduser('~')
+    DATA_DIR = os.path.expanduser('~/.biwenger_liga')
+
+# Crear directorio si no existe
+os.makedirs(DATA_DIR, exist_ok=True)
 
 class LoginScreen(Screen):
     def __init__(self, **kwargs):
@@ -49,7 +50,7 @@ class LoginScreen(Screen):
             text='⚽ BIWENGER LIGA MANAGER ⚽', 
             font_size='28sp', 
             size_hint_y=0.3,
-            color=[0, 0.8, 0, 1]  # Verde
+            color=[0, 0.8, 0, 1]
         )
         main_layout.add_widget(title)
         
@@ -116,7 +117,6 @@ class LoginScreen(Screen):
             
         app = App.get_running_app()
         if app.verify_login(self.username.text, self.password.text):
-            # Limpiar campos
             self.username.text = ''
             self.password.text = ''
             app.root.current = 'main'
@@ -141,7 +141,6 @@ class RegisterScreen(Screen):
         
         main_layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         
-        # Título
         title = Label(
             text='📝 REGISTRO NUEVO JUGADOR', 
             font_size='24sp', 
@@ -150,12 +149,10 @@ class RegisterScreen(Screen):
         )
         main_layout.add_widget(title)
         
-        # Scroll para formulario
         scroll = ScrollView(size_hint_y=0.65)
         form_layout = BoxLayout(orientation='vertical', spacing=10, size_hint_y=None)
         form_layout.bind(minimum_height=form_layout.setter('height'))
         
-        # Campos del formulario
         self.username = TextInput(
             hint_text='👤 Usuario (obligatorio)', 
             multiline=False,
@@ -200,7 +197,6 @@ class RegisterScreen(Screen):
         scroll.add_widget(form_layout)
         main_layout.add_widget(scroll)
         
-        # Botones
         btn_layout = BoxLayout(size_hint_y=0.2, spacing=10)
         
         register_btn = Button(
@@ -236,11 +232,21 @@ class RegisterScreen(Screen):
             self.biwenger_user.text
         )
         
-        if result:
+        if result == "success":
+            self.clear_form()
             self.show_popup('✅ Éxito', 'Usuario registrado correctamente')
             Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'login'), 1.5)
-        else:
+        elif result == "exists":
             self.show_popup('❌ Error', 'El usuario ya existe')
+        else:
+            self.show_popup('❌ Error', 'No se pudo registrar el usuario')
+    
+    def clear_form(self):
+        self.username.text = ''
+        self.password.text = ''
+        self.email.text = ''
+        self.phone.text = ''
+        self.biwenger_user.text = ''
     
     def go_back(self, instance):
         App.get_running_app().root.current = 'login'
@@ -260,7 +266,6 @@ class MainScreen(Screen):
         
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
-        # Header
         header = BoxLayout(size_hint_y=0.15, spacing=10)
         
         self.user_label = Label(
@@ -281,19 +286,19 @@ class MainScreen(Screen):
         
         main_layout.add_widget(header)
         
-        # Grid de botones principales
         buttons_scroll = ScrollView(size_hint_y=0.85)
         buttons_layout = GridLayout(cols=2, spacing=10, size_hint_y=None, padding=10)
         buttons_layout.bind(minimum_height=buttons_layout.setter('height'))
         
-        # Botones del menú
         menu_items = [
             ('⚽ BIWENGER', [0, 0.6, 0.8, 1], self.go_to_biwenger),
             ('🚨 SANCIONES', [0.8, 0.4, 0, 1], self.go_to_sanctions),
             ('🏆 PREMIOS', [0.8, 0.6, 0, 1], self.go_to_prizes),
             ('💰 DINERO', [0, 0.8, 0.4, 1], self.show_sanctions_money),
             ('💬 WHATSAPP', [0.2, 0.8, 0.2, 1], self.open_whatsapp),
-            ('📋 REGLAS', [0.6, 0.6, 0.6, 1], self.show_rules)
+            ('📋 REGLAS', [0.6, 0.6, 0.6, 1], self.show_rules),
+            ('👤 MI PERFIL', [0.5, 0.3, 0.8, 1], self.show_profile),
+            ('⚙️ CONFIGURACIÓN', [0.3, 0.3, 0.3, 1], self.show_settings)
         ]
         
         for text, color, callback in menu_items:
@@ -341,6 +346,15 @@ class MainScreen(Screen):
         app = App.get_running_app()
         app.create_whatsapp_group()
     
+    def show_profile(self, instance):
+        App.get_running_app().root.current = 'profile'
+    
+    def show_settings(self, instance):
+        if App.get_running_app().is_admin():
+            App.get_running_app().root.current = 'settings'
+        else:
+            self.show_popup('❌ Acceso denegado', 'Solo el administrador puede acceder a la configuración')
+    
     def show_rules(self, instance):
         App.get_running_app().root.current = 'rules'
     
@@ -359,7 +373,6 @@ class BiwengerScreen(Screen):
         
         main_layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
         
-        # Título
         title = Label(
             text='⚽ GESTIÓN BIWENGER', 
             font_size='24sp', 
@@ -368,7 +381,6 @@ class BiwengerScreen(Screen):
         )
         main_layout.add_widget(title)
         
-        # Botones de gestión
         buttons_layout = BoxLayout(orientation='vertical', spacing=15, size_hint_y=0.6)
         
         signup_btn = Button(
@@ -397,7 +409,6 @@ class BiwengerScreen(Screen):
         
         main_layout.add_widget(buttons_layout)
         
-        # Botón volver
         back_btn = Button(
             text='🔙 VOLVER AL MENÚ',
             size_hint_y=0.2,
@@ -410,8 +421,11 @@ class BiwengerScreen(Screen):
         self.add_widget(main_layout)
     
     def signup_biwenger(self, instance):
-        webbrowser.open('https://www.biwenger.com/auth/register')
-        self.show_popup('🔗 Biwenger', '¡Abriendo página de registro!\n\nRegístrate y luego vuelve a la app')
+        try:
+            webbrowser.open('https://www.biwenger.com/auth/register')
+            self.show_popup('🔗 Biwenger', '¡Abriendo página de registro!\n\nRegístrate y luego vuelve a la app')
+        except:
+            self.show_popup('❌ Error', 'No se pudo abrir el navegador')
     
     def view_lineups(self, instance):
         self.show_popup('👥 Alineaciones', '🚧 Próximamente...\n\nSe conectará con la API de Biwenger para mostrar todas las alineaciones de la liga')
@@ -437,7 +451,6 @@ class SanctionsScreen(Screen):
         
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
-        # Header
         header = BoxLayout(size_hint_y=0.15, spacing=10)
         
         title = Label(
@@ -447,8 +460,6 @@ class SanctionsScreen(Screen):
         )
         header.add_widget(title)
         
-        # Resumen de sanciones
-        app = App.get_running_app()
         self.summary_label = Label(
             text='💰 Total: 0.00€',
             font_size='16sp',
@@ -459,16 +470,15 @@ class SanctionsScreen(Screen):
         
         main_layout.add_widget(header)
         
-        # Lista de jugadores
         scroll = ScrollView(size_hint_y=0.65)
         self.players_layout = GridLayout(cols=1, size_hint_y=None, spacing=5)
         self.players_layout.bind(minimum_height=self.players_layout.setter('height'))
         scroll.add_widget(self.players_layout)
         main_layout.add_widget(scroll)
         
-        # Botones de control
         controls_layout = BoxLayout(size_hint_y=0.2, spacing=10)
         
+        app = App.get_running_app()
         if app.is_admin():
             add_sanction_btn = Button(
                 text='➕ AÑADIR SANCIÓN',
@@ -501,7 +511,6 @@ class SanctionsScreen(Screen):
         self.players_layout.clear_widgets()
         app = App.get_running_app()
         
-        # Actualizar resumen
         total_sanctions = app.calculate_sanctions_money()
         self.summary_label.text = f'💰 Total: {total_sanctions:.2f}€'
         
@@ -518,7 +527,6 @@ class SanctionsScreen(Screen):
         for player in players:
             player_layout = BoxLayout(size_hint_y=None, height='70dp', spacing=10)
             
-            # Info del jugador
             sanctions_text = f"{player.get('sanctions', 0):.2f}€"
             status_emoji = "🚨" if player.get('sanctions', 0) > 0 else "✅"
             
@@ -530,7 +538,6 @@ class SanctionsScreen(Screen):
             )
             player_layout.add_widget(player_info)
             
-            # Botones de admin
             if app.is_admin() and player['username'] != app.current_user:
                 btn_layout = BoxLayout(size_hint_x=0.4, spacing=5)
                 
@@ -542,13 +549,13 @@ class SanctionsScreen(Screen):
                 pay_btn.bind(on_press=lambda x, p=player: self.pay_sanction(p))
                 btn_layout.add_widget(pay_btn)
                 
-                remove_btn = Button(
-                    text='❌',
+                edit_btn = Button(
+                    text='✏️',
                     size_hint_x=0.5,
-                    background_color=[0.8, 0.2, 0.2, 1]
+                    background_color=[0.8, 0.6, 0.2, 1]
                 )
-                remove_btn.bind(on_press=lambda x, p=player: self.remove_player(p))
-                btn_layout.add_widget(remove_btn)
+                edit_btn.bind(on_press=lambda x, p=player: self.edit_player(p))
+                btn_layout.add_widget(edit_btn)
                 
                 player_layout.add_widget(btn_layout)
             
@@ -559,7 +566,6 @@ class SanctionsScreen(Screen):
             self.show_popup('❌ Error', 'Solo el administrador puede añadir sanciones')
             return
         
-        # Crear popup para añadir sanción
         content = BoxLayout(orientation='vertical', spacing=10, padding=10)
         
         player_input = TextInput(
@@ -570,7 +576,6 @@ class SanctionsScreen(Screen):
         )
         content.add_widget(player_input)
         
-        # Botones de sanciones predefinidas
         sanctions_layout = GridLayout(cols=2, spacing=5, size_hint_y=None, height='120dp')
         
         predefined_sanctions = [
@@ -580,25 +585,15 @@ class SanctionsScreen(Screen):
             ('Reincidencia', 15)
         ]
         
-        popup = None  # Se definirá después
+        popup = Popup(
+            title='➕ Añadir Sanción',
+            content=content,
+            size_hint=(0.9, 0.7)
+        )
         
         for text, amount in predefined_sanctions:
             btn = Button(text=f'{text}\n{amount}€', font_size='12sp')
             btn.bind(on_press=lambda x, a=amount, t=text: self.add_predefined_sanction(
                 player_input.text, a, t, popup
             ))
-            sanctions_layout.add_widget(btn)
-        
-        content.add_widget(sanctions_layout)
-        
-        # Sanción personalizada
-        custom_layout = BoxLayout(spacing=10, size_hint_y=None, height='48dp')
-        sanction_input = TextInput(
-            hint_text='💰 Cantidad personalizada (€)', 
-            multiline=False
-        )
-        custom_layout.add_widget(sanction_input)
-        
-        custom_btn = Button(text='➕', size_hint_x=0.2)
-        custom_btn.bind(on_press=lambda x: self.add_custom_sanction(
            
